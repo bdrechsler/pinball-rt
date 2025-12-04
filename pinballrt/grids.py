@@ -741,7 +741,7 @@ class Grid:
             t2 = time.time()
             dust_interpolation_time += t2 - t1
 
-            photon_list.absorb = wp.array(np.repeat(False, nphotons), dtype=bool)
+            photon_list.absorb = wp.array(np.random.rand(nphotons) > photon_list.albedo.numpy(), dtype=bool)
 
             photon_list.total_tau_abs = wp.zeros(nphotons, dtype=float)
 
@@ -1074,6 +1074,9 @@ class Grid:
                 iray = iray_original[torch.logical_and(wp.to_torch(ray_list.in_grid), torch.logical_not(wp.to_torch(ray_list.pixel_too_large)))]
                 nrays = iray.size(0)
 
+                ray_list.kext = self.dust.interpolate_kext_wp(ray_list, iray)
+                ray_list.ray_albedo = self.dust.interpolate_albedo_wp(ray_list, iray)
+    
 class UniformCartesianGrid(Grid):
     def __init__(self, ncells=9, dx=1.0*u.au, device="cpu"):
         """
