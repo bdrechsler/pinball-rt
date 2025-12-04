@@ -5,10 +5,8 @@ from pinballrt.model import Model
 from pinballrt.utils import calculate_Qvalue
 
 import astropy.units as u
-import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-import torch
 import os
 
 import pytest
@@ -39,12 +37,19 @@ def test_E2E(grid_class, grid_kwargs, percentile, return_vals=False):
 
     density = np.ones(model.grid.shape)*1.0e-16 * u.g / u.cm**3
 
-    model.add_density(density, d)
+    vx, vy, vz = np.meshgrid(0.5*(model.grid.grid.w1.numpy()[1:] + model.grid.grid.w1.numpy()[0:-1]), 
+                             0.5*(model.grid.grid.w2.numpy()[1:] + model.grid.grid.w2.numpy()[0:-1]), 
+                             0.5*(model.grid.grid.w3.numpy()[1:] + model.grid.grid.w3.numpy()[0:-1]), indexing='ij')
+    velocity = np.concatenate((vx[np.newaxis], vy[np.newaxis], vz[np.newaxis]), axis=0) * (-1.0 * u.km / u.s)
+
+    model.set_physical_properties(density=density, dust="yso.dst", amax=1.0*u.mm, p=3.5, gases=['co.dat'], 
+                                  abundances=[1.0e-4], microturbulence=0.2 * u.km / u.s, velocity=velocity)
     model.add_star(star)
 
     model.thermal_mc(nphotons=1000000, use_ml_step=False, Qthresh=1.02, Delthresh=1.02)
 
-    image = model.make_image(npix=256, pixel_size=0.2*u.arcsec, lam=np.array([1., 1000.])*u.micron, incl=45.*u.degree, pa=45.*u.degree, distance=1.*u.pc, nphotons=1000000)
+    image = model.make_image(npix=256, pixel_size=0.2*u.arcsec, channels=np.array([1., 1000.])*u.micron, 
+                             incl=45.*u.degree, pa=45.*u.degree, distance=1.*u.pc, nphotons=1000000, include_gas=False)
 
     # Do the checks.
 
