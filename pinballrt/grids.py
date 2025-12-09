@@ -129,6 +129,28 @@ class Grid:
     def add_star(self, star):
         self.star = star
 
+    @wp.kernel
+    def sample_from_cum_lum(grid: GridStruct,
+                            cum_sum: wp.array3d(dtype=float),
+                            cell_coords: wp.array2d(dtype=int),
+                            seed: int,
+                            ): # pragma: no cover
+        i = wp.tid()
+
+        rng = wp.rand_init(seed, i)
+        ksi = wp.randf(rng)
+
+        min_cum_sum = float(wp.inf)
+
+        for ix in range(grid.n1):
+            for iy in range(grid.n2):
+                for iz in range(grid.n3):
+                    if ksi >= cum_sum[ix,iy,iz] and cum_sum[ix,iy,iz] < min_cum_sum:
+                        min_cum_sum = cum_sum[ix,iy,iz]
+                        cell_coords[i][0] = ix
+                        cell_coords[i][1] = iy
+                        cell_coords[i][2] = iz
+
     def base_emit(self, nphotons, wavelength="random", scattering=False, timing={}):
         with wp.ScopedDevice(self.device):
             if scattering:
@@ -143,32 +165,47 @@ class Grid:
 
             cell_coords = []
             if scattering:
-                ksi = np.random.rand(nphotons_per_source)
+                t1 = time.time()
                 multiplier = 1. / (nphotons_per_source * 100)
                 if self.luminosity.sum() == 0:
                     self.luminosity += EPSILON
                 cum_lum = np.cumsum(np.maximum(self.luminosity, self.luminosity.max()*multiplier).flatten()).reshape(self.shape) / np.maximum(self.luminosity, self.luminosity.max()*multiplier).sum()
+                t2 = time.time()
+                timing["cum_lum time"] = t2 - t1
 
-                for i in range(nphotons_per_source):
-                    cell_coords += [np.where(cum_lum[cum_lum > ksi[i]].min() == cum_lum)]
-                cell_coords = wp.array2d(np.array(cell_coords)[:,:,0], dtype=int)
+                t1 = time.time()
+                cell_coords = wp.array2d(np.zeros((nphotons_per_source, 3), dtype=int), dtype=int)
+                wp.launch(kernel=self.sample_from_cum_lum,
+                          dim=(nphotons_per_source,),
+                          inputs=[self.grid, wp.array3d(cum_lum, dtype=float), cell_coords, np.random.randint(0, 100000)])
+                t2 = time.time()
+                timing["cell coords time"] = t2 - t1
 
+                t1 = time.time()
                 new_position = wp.array(np.zeros((nphotons_per_source,3)), dtype=wp.vec3)
                 wp.launch(kernel=self.random_location_in_cell, 
                           dim=(nphotons_per_source,), 
                           inputs=[new_position, cell_coords, self.grid, np.random.randint(0, 100000)])
+                t2 = time.time()
+                timing["random loc time"] = t2 - t1
 
                 photon_list.position = wp.array(np.concatenate((photon_list.position.numpy(), new_position.numpy()), axis=0), dtype=wp.vec3)
 
+                t1 = time.time()
                 new_direction = wp.array(np.zeros((nphotons_per_source, 3)), dtype=wp.vec3)
                 wp.launch(kernel=self.random_direction,
                           dim=(nphotons_per_source,),
                           inputs=[new_direction, torch.arange(nphotons_per_source, dtype=torch.int32, device=wp.device_to_torch(wp.get_device())), np.random.randint(0, 100000)])
                 photon_list.direction = wp.array(np.concatenate((photon_list.direction.numpy(), new_direction.numpy()), axis=0), dtype=wp.vec3)
                 photon_list.direction_frame = wp.array(np.concatenate((photon_list.direction_frame.numpy(), new_direction.numpy()), axis=0), dtype=wp.vec3)
+                t2 = time.time()
+                timing["random dir time"] = t2 - t1
 
+                t1 = time.time()
                 photon_list.frequency = wp.array(np.concatenate([photon_list.frequency.numpy(), np.repeat((const.c / wavelength).to(u.GHz).value, nphotons_per_source)]), dtype=float)
                 photon_list.energy = wp.array(np.concatenate([photon_list.energy.numpy(), np.repeat(self.total_lum/nphotons_per_source, nphotons_per_source).astype(np.float32)]), dtype=float)
+                t2 = time.time()
+                timing["set freq/energy time"] = t2 - t1
 
             return photon_list
     
