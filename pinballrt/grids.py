@@ -145,7 +145,7 @@ class Grid:
         for ix in range(grid.n1):
             for iy in range(grid.n2):
                 for iz in range(grid.n3):
-                    if ksi >= cum_sum[ix,iy,iz] and cum_sum[ix,iy,iz] < min_cum_sum:
+                    if ksi < cum_sum[ix,iy,iz] and cum_sum[ix,iy,iz] < min_cum_sum:
                         min_cum_sum = cum_sum[ix,iy,iz]
                         cell_coords[i][0] = ix
                         cell_coords[i][1] = iy
