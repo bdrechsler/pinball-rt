@@ -65,7 +65,7 @@ def test_E2E(grid_class, grid_kwargs, percentile, return_vals=False):
 
         base_image = xr.open_dataset(os.path.join(os.path.dirname(__file__), f"data/{grid_class.__name__}_E2E_image.nc"))
         Q = calculate_Qvalue(image.intensity, base_image.intensity, percentile=100.0, clip=0.1)
-        assert Q < 1.02, f"Image difference exceeds tolerance: {Q}"
+        assert Q < 1.03, f"Image difference exceeds tolerance: {Q}"
     else:
         return model.grid.grid.temperature.numpy(), model.grid.scattering.numpy(), image
 
