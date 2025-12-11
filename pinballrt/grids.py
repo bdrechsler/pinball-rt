@@ -69,7 +69,7 @@ class Grid:
         with wp.ScopedDevice(self.device):
             if density is not None:
                 self.grid.dust_density = wp.array3d((density * dusttogasratio * dust.kmean).to(1. / self.distance_unit).value, dtype=float)
-                self.grid.gas_density = wp.array3d(density, dtype=float)
+                self.grid.gas_density = wp.array3d(density.to(u.g / u.cm**3), dtype=float)
 
                 self.grid.energy = wp.zeros(density.shape, dtype=float)
                 self.grid.temperature = wp.array3d(np.ones(density.shape) * 0.1, dtype=float)
@@ -948,7 +948,7 @@ class Grid:
         a_microturb = self.grid.microturbulence.numpy() * u.km / u.s
         inv_gamma = (1.0 / (gas.nu[iline] / const.c * np.sqrt(a_thermal**2 + a_microturb**2))).decompose().to(1./u.GHz)
 
-        number_density = (self.grid.gas_density.numpy() * self.gas_abundances[igas] / (gas.mass * const.m_p)).decompose()
+        number_density = (self.grid.gas_density.numpy()*u.g / u.cm**3 * self.gas_abundances[igas] / (gas.mass * const.m_p)).decompose()
         
         # Alpha for this line in this cell
         # alpha = c^2/(8*pi*nu^2) * A * n * (n_l * g_u/g_l - n_u) * inv_gamma / sqrt(pi)
