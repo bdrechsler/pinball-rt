@@ -35,7 +35,7 @@ def test_E2E(grid_class, grid_kwargs, percentile, return_vals=False):
     # Set up the grid.
     model = Model(grid=grid_class, grid_kwargs=grid_kwargs)
 
-    density = np.ones(model.grid.shape)*1.0e-16 * u.g / u.cm**3
+    density = np.ones(model.grid.shape)*1.0e-14 * u.g / u.cm**3
 
     vx, vy, vz = np.meshgrid(0.5*(model.grid.grid.w1.numpy()[1:] + model.grid.grid.w1.numpy()[0:-1]), 
                              0.5*(model.grid.grid.w2.numpy()[1:] + model.grid.grid.w2.numpy()[0:-1]), 

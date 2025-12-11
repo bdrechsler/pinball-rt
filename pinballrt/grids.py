@@ -32,7 +32,8 @@ class GridStruct:
 
     mirror_symmetry: bool
 
-    density: wp.array3d(dtype=float)
+    dust_density: wp.array3d(dtype=float)
+    gas_density: wp.array3d(dtype=float)
     temperature: wp.array3d(dtype=float)
     energy: wp.array3d(dtype=float)
     amax: wp.array3d(dtype=float)
@@ -63,15 +64,16 @@ class Grid:
 
             self.shape = (self.grid.n1, self.grid.n2, self.grid.n3)
 
-    def set_physical_properties(self, density=None, dust=None, amax=None, p=None, gases=None, abundances=None, 
+    def set_physical_properties(self, density=None, dusttogasratio=0.01, dust=None, amax=None, p=None, gases=None, abundances=None, 
                                 velocity=None, microturbulence=None):
         with wp.ScopedDevice(self.device):
             if density is not None:
-                self.grid.density = wp.array3d((density * dust.kmean).to(1. / self.distance_unit).value, dtype=float)
+                self.grid.dust_density = wp.array3d((density * dusttogasratio * dust.kmean).to(1. / self.distance_unit).value, dtype=float)
+                self.grid.gas_density = wp.array3d(density, dtype=float)
 
                 self.grid.energy = wp.zeros(density.shape, dtype=float)
                 self.grid.temperature = wp.array3d(np.ones(density.shape) * 0.1, dtype=float)
-                self.mass = (density * self.volume.cpu().numpy() * self.distance_unit**3).decompose()
+                self.dust_mass = (density * dusttogasratio * self.volume.cpu().numpy() * self.distance_unit**3).decompose()
 
             if amax is not None:
                 if isinstance(amax, (int, float)):
@@ -232,7 +234,7 @@ class Grid:
 
         ix, iy, iz = photon_list.indices[ip][0], photon_list.indices[ip][1], photon_list.indices[ip][2]
 
-        photon_list.alpha[ip] = grid.density[ix,iy,iz] * photon_list.ksca[ip]
+        photon_list.alpha[ip] = grid.dust_density[ix,iy,iz] * photon_list.ksca[ip]
         distances[ip] = photon_list.tau[ip] / photon_list.alpha[ip]
 
     @wp.kernel
@@ -339,7 +341,7 @@ class Grid:
         ix, iy, iz = photon_list.indices[ip][0], photon_list.indices[ip][1], photon_list.indices[ip][2]
 
         photon_list.temperature[ip] = grid.temperature[ix, iy, iz]
-        photon_list.density[ip] = grid.density[ix, iy, iz]
+        photon_list.density[ip] = grid.dust_density[ix, iy, iz]
         photon_list.amax[ip] = grid.amax[ix, iy, iz]
         photon_list.p[ip] = grid.p[ix, iy, iz]
 
@@ -463,9 +465,9 @@ class Grid:
 
                 temperature = ((total_energy*u.L_sun).cgs.value / (4*const.sigma_sb.cgs.value*\
                         planck_mean_opacity*\
-                        self.mass.cgs.value))**0.25
+                        self.dust_mass.cgs.value))**0.25
 
-                temperature[np.logical_or(temperature < 0.1, self.mass.value == 0)] = 0.1
+                temperature[np.logical_or(temperature < 0.1, self.dust_mass.value == 0)] = 0.1
 
                 if (np.abs(old_temperature - temperature) / old_temperature).max() < 1.0e-2:
                     converged = True
@@ -481,7 +483,7 @@ class Grid:
             for i in range(self.shape[0]):
                 for j in range(self.shape[1]):
                     for k in range(self.shape[2]):
-                        self.luminosity[i,j,k] = (4*np.pi*u.steradian*self.grid.density.numpy()[i,j,k]*self.volume.cpu().numpy()[i,j,k]*self.dust.interpolate_kabs(nu)*self.distance_unit**2*models.BlackBody(temperature=self.grid.temperature.numpy()[i,j,k]*u.K)(nu)).to(u.au**2 * u.Jy).value
+                        self.luminosity[i,j,k] = (4*np.pi*u.steradian*self.grid.dust_density.numpy()[i,j,k]*self.volume.cpu().numpy()[i,j,k]*self.dust.interpolate_kabs(nu)*self.distance_unit**2*models.BlackBody(temperature=self.grid.temperature.numpy()[i,j,k]*u.K)(nu)).to(u.au**2 * u.Jy).value
 
             self.total_lum = self.luminosity.sum()
 
@@ -946,7 +948,7 @@ class Grid:
         a_microturb = self.grid.microturbulence.numpy() * u.km / u.s
         inv_gamma = (1.0 / (gas.nu[iline] / const.c * np.sqrt(a_thermal**2 + a_microturb**2))).decompose().to(1./u.GHz)
 
-        number_density = ((self.grid.density.numpy() * 1./self.distance_unit / self.dust.kmean) * self.gas_abundances[igas] / (gas.mass * const.m_p)).decompose()
+        number_density = (self.grid.gas_density.numpy() * self.gas_abundances[igas] / (gas.mass * const.m_p)).decompose()
         
         # Alpha for this line in this cell
         # alpha = c^2/(8*pi*nu^2) * A * n * (n_l * g_u/g_l - n_u) * inv_gamma / sqrt(pi)
@@ -973,11 +975,11 @@ class Grid:
         alpha_sca = 0.
 
         if grid.include_dust:
-            tau_cell = tau_cell + s[ir]*ray_list.kext[iray,inu]*grid.density[ix,iy,iz]
-            alpha_ext = alpha_ext + ray_list.kext[iray,inu]*grid.density[ix,iy,iz]
-            alpha_sca = alpha_sca + ray_list.kext[iray,inu]*ray_list.ray_albedo[iray,inu]*grid.density[ix,iy,iz]
+            tau_cell = tau_cell + s[ir]*ray_list.kext[iray,inu]*grid.dust_density[ix,iy,iz]
+            alpha_ext = alpha_ext + ray_list.kext[iray,inu]*grid.dust_density[ix,iy,iz]
+            alpha_sca = alpha_sca + ray_list.kext[iray,inu]*ray_list.ray_albedo[iray,inu]*grid.dust_density[ix,iy,iz]
             intensity_abs = intensity_abs + ray_list.kext[iray,inu] * (1. - ray_list.ray_albedo[iray,inu]) * \
-                    grid.density[ix,iy,iz] * planck_function(ray_list.frequency[inu], grid.temperature[ix,iy,iz])
+                    grid.dust_density[ix,iy,iz] * planck_function(ray_list.frequency[inu], grid.temperature[ix,iy,iz])
 
             albedo_total = alpha_sca / alpha_ext
 
@@ -1015,7 +1017,7 @@ class Grid:
 
         ix, iy, iz = ray_list.indices[ir][0], ray_list.indices[ir][1], ray_list.indices[ir][2]
 
-        ray_list.intensity[ir, inu] = ray_list.intensity[ir, inu] * wp.exp(-s[ir] * ray_list.kext[ir, inu] * grid.density[ix, iy, iz])
+        ray_list.intensity[ir, inu] = ray_list.intensity[ir, inu] * wp.exp(-s[ir] * ray_list.kext[ir, inu] * grid.dust_density[ix, iy, iz])
 
     def propagate_rays(self, ray_list: PhotonList, frequency, pixel_size):
         with wp.ScopedDevice(self.device):
@@ -1192,9 +1194,9 @@ class UniformCartesianGrid(Grid):
 
         rng = wp.rand_init(seed, ip)
 
-        position[ip][0] = grid.w1[ix] + (grid.w1[ix+1] - grid.w1[ix])*wp.randf(rng)
-        position[ip][1] = grid.w2[iy] + (grid.w2[iy+1] - grid.w2[iy])*wp.randf(rng)
-        position[ip][2] = grid.w3[iz] + (grid.w3[iz+1] - grid.w3[iz])*wp.randf(rng)
+        position[ip][0] = grid.w1[ix] + (grid.w1[ix+1] - grid.w1[ix])*max(min(wp.randf(rng), 0.999), 0.001)
+        position[ip][1] = grid.w2[iy] + (grid.w2[iy+1] - grid.w2[iy])*max(min(wp.randf(rng), 0.999), 0.001)
+        position[ip][2] = grid.w3[iz] + (grid.w3[iz+1] - grid.w3[iz])*max(min(wp.randf(rng), 0.999), 0.001)
 
     @wp.kernel
     def next_wall_distance(photon_list: PhotonList,
@@ -1264,7 +1266,7 @@ class UniformCartesianGrid(Grid):
         if sz2 < s:
             s = sz2
 
-        if s * photon_list.kabs[ip] * grid.density[ix, iy, iz] < 10.**log10_tau_min:
+        if s * photon_list.kabs[ip] * grid.dust_density[ix, iy, iz] < 10.**log10_tau_min:
             s = 0.
 
         max_tau_distance = 10.**log10_tau_max / photon_list.alpha[ip]
@@ -1518,9 +1520,9 @@ class UniformSphericalGrid(Grid):
 
         rng = wp.rand_init(seed, ip)
 
-        r = grid.w1[ix] + wp.randf(rng) * (grid.w1[ix+1] - grid.w1[ix])
-        theta = grid.w2[iy] + wp.randf(rng) * (grid.w2[iy+1] - grid.w2[iy])
-        phi = grid.w3[iz] + wp.randf(rng) * (grid.w3[iz+1] - grid.w3[iz])
+        r = grid.w1[ix] + max(min(wp.randf(rng), 0.999), 0.001) * (grid.w1[ix+1] - grid.w1[ix])
+        theta = grid.w2[iy] + max(min(wp.randf(rng), 0.999), 0.001) * (grid.w2[iy+1] - grid.w2[iy])
+        phi = grid.w3[iz] + max(min(wp.randf(rng), 0.999), 0.001) * (grid.w3[iz+1] - grid.w3[iz])
 
         position[ip][0] = r * wp.sin(theta) * wp.cos(phi)
         position[ip][1] = r * wp.sin(theta) * wp.sin(phi)
@@ -1666,7 +1668,7 @@ class UniformSphericalGrid(Grid):
                 if sp < s:
                     s = sp
 
-        if s * photon_list.kabs[ip] * grid.density[iw1, iw2, iw3] < log10_tau_min:
+        if s * photon_list.kabs[ip] * grid.dust_density[iw1, iw2, iw3] < log10_tau_min:
             s = 0.
 
         max_tau_distance = log10_tau_max / photon_list.alpha[ip]
@@ -1999,9 +2001,9 @@ class LogUniformSphericalGrid(UniformSphericalGrid):
         if ix == 0:
             r = 10.**(wp.randf(rng) * grid.logw1[ix])
         else:
-            r = 10.**(grid.logw1[ix-1] + wp.randf(rng) * (grid.logw1[ix] - grid.logw1[ix-1]))
-        theta = grid.w2[iy] + wp.randf(rng) * (grid.w2[iy+1] - grid.w2[iy])
-        phi = grid.w3[iz] + wp.randf(rng) * (grid.w3[iz+1] - grid.w3[iz])
+            r = 10.**(grid.logw1[ix-1] + max(min(wp.randf(rng), 0.999), 0.001) * (grid.logw1[ix] - grid.logw1[ix-1]))
+        theta = grid.w2[iy] + max(min(wp.randf(rng), 0.999), 0.001) * (grid.w2[iy+1] - grid.w2[iy])
+        phi = grid.w3[iz] + max(min(wp.randf(rng), 0.999), 0.001) * (grid.w3[iz+1] - grid.w3[iz])
 
         position[ip][0] = r * wp.sin(theta) * wp.cos(phi)
         position[ip][1] = r * wp.sin(theta) * wp.sin(phi)
