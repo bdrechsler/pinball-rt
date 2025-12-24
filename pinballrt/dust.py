@@ -210,6 +210,16 @@ class Dust(pl.LightningDataModule):
                 self.nu[i-1]
 
         return frequency
+    
+    def random_nu_ml(self, temperature):
+        nphotons = temperature.size
+        ksi = torch.rand(int(nphotons), device=wp.device_to_torch(wp.get_device()), dtype=torch.float32)
+        test_x = torch.transpose(torch.vstack((torch.log10(torch.tensor(temperature, dtype=torch.float32)), ksi)), 0, 1)
+        test_x = self.random_nu_x_scaler.transform(test_x)
+
+        log10_nu = torch.clamp(self.random_nu_y_scaler.inverse_transform(self.random_nu_model(test_x).detach()), self.log10_nu_min, self.log10_nu_max)
+
+        return 10.**log10_nu.numpy()
 
     def random_nu(self, photon_list, subset=None):
         temperature = wp.to_torch(photon_list.temperature)
@@ -263,7 +273,7 @@ class Dust(pl.LightningDataModule):
         else:
             self.random_nu_model = MultiLayerPerceptron(input_size, output_size, hidden_units=hidden_units)
 
-    def learn(self, model="random_nu", nsamples=200000, test_split=0.1, valid_split=0.2, hidden_units=(48, 48, 48), max_epochs=10, batch_size=100, plot=False, 
+    def learn(self, model="random_nu", nsamples=200000, test_split=0.1, valid_split=0.2, hidden_units=(48, 48, 48),
             tau_range=(0.5, 4.0), temperature_range=(-1.0, 4.0), nu_range=None):
         """
         Learn a model for either the random_nu function or the ml_step function.
@@ -280,16 +290,12 @@ class Dust(pl.LightningDataModule):
             The fraction of the remaining samples (after testing) to use for validation.
         hidden_units : tuple
             The number of hidden units in each layer of the neural network.
-        max_epochs : int
-            The maximum number of epochs to train the model.
-        plot : bool
-            Whether to plot the results after training.
         """
+        self.current_model = model
         self.nsamples = nsamples
         self.test_split = test_split
         self.valid_split = valid_split
         self.learning = model
-        self.batch_size = batch_size
 
         # Set up the NN
 
@@ -314,9 +320,32 @@ class Dust(pl.LightningDataModule):
 
         self.dustLM = DustLightningModule(getattr(self, model+"_model"))
 
-        self.trainer = pl.Trainer(max_epochs=max_epochs)
-        self.trainer.fit(model=self.dustLM, datamodule=self)
+        self.trainer = pl.Trainer(max_epochs=0, callbacks=[pl.callbacks.ModelCheckpoint(save_last=True, 
+                                                                                        dirpath=f'{model}_lightning_logs')])
 
+    def fit(self, epochs=10, batch_size=100, ckpt_path=None):
+        '''
+        Run the model fit.
+
+        Parameters:
+        ----------
+        max_epochs : int
+            The maximum number of epochs to train the model.
+        '''
+        self.batch_size = batch_size
+
+        self.trainer.fit_loop.max_epochs += max_epochs
+        self.trainer.fit(model=self.dustLM, datamodule=self, ckpt_path=ckpt_path)
+
+    def test_model(self, plot=False):
+        '''
+        Test the model fit.
+
+        Parameters:
+        ----------
+        plot : bool
+            Whether to plot the results after training.
+        '''
         # Test the model.
 
         self.trainer.test(model=self.dustLM, datamodule=self)
@@ -326,7 +355,7 @@ class Dust(pl.LightningDataModule):
         if plot:
             import matplotlib.pyplot as plt
 
-            if model == "random_nu":
+            if self.current_model == "random_nu":
                 y_pred = self.trainer.predict(self.dustLM, datamodule=self)
                 y_pred = torch.cat(y_pred)
                 y_true = torch.cat([batch[1] for batch in self.predict_dataloader()])
@@ -354,6 +383,17 @@ class Dust(pl.LightningDataModule):
 
         y = np.concatenate([self.random_nu_manual(10.**X_batch[:,0].numpy(), X_batch[:,1].numpy()) for X_batch in DataLoader(X, batch_size=1000)])
         y = torch.tensor(np.log10(y.value), dtype=torch.float32)
+
+        X_scaler = StandardScaler()
+        X_scaler.fit(X)
+        X = X_scaler.transform(X)
+
+        y_scaler = StandardScaler()
+        y_scaler.fit(y)
+        y = y_scaler.transform(y)
+
+        self.random_nu_x_scaler = X_scaler
+        self.random_nu_y_scaler = y_scaler
 
         self.dataset = TensorDataset(X, y)
 
@@ -521,10 +561,10 @@ class Dust(pl.LightningDataModule):
                     if predict:
                         ax[i,j].hist(df_pred[key1], bins=50, histtype='step', density=True)
                 elif i > j:
-                    ax[i,j].scatter(df_true[key2], df_true[key1], marker='.', s=0.025)
+                    ax[i,j].scatter(df_true[key2], df_true[key1], marker='.', s=0.025, alpha=0.01)
 
                     if predict:
-                        ax[i,j].scatter(df_pred[key2], df_pred[key1], marker='.', s=0.025)
+                        ax[i,j].scatter(df_pred[key2], df_pred[key1], marker='.', s=0.025, alpha=0.01)
                 elif i < j:
                     ax[i,j].set_axis_off()
 
@@ -542,19 +582,19 @@ class Dust(pl.LightningDataModule):
         valid_size = int((self.nsamples - test_size)*self.valid_split)
         train_size = self.nsamples - test_size - valid_size
         train_val_tmp, self.test = random_split(self.dataset, [train_size + valid_size, test_size], generator=torch.Generator().manual_seed(1))
-        self.train, self.val = random_split(train_val_tmp, [train_size, valid_size], generator=torch.Generator().manual_seed(2))
+        self.train, self.valid = random_split(train_val_tmp, [train_size, valid_size], generator=torch.Generator().manual_seed(2))
 
     def train_dataloader(self):
-        return DataLoader(self.train, batch_size=self.batch_size, num_workers=2)
+        return DataLoader(self.train, batch_size=self.batch_size, num_workers=2, persistent_workers=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val, batch_size=self.batch_size, num_workers=2)
+        return DataLoader(self.valid, batch_size=self.batch_size, num_workers=2, persistent_workers=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test, batch_size=self.batch_size, num_workers=2)
+        return DataLoader(self.test, batch_size=self.batch_size, num_workers=2, persistent_workers=True)
 
     def predict_dataloader(self):
-        return DataLoader(self.test, batch_size=self.batch_size, num_workers=2)
+        return DataLoader(self.test, batch_size=self.batch_size, num_workers=2, persistent_workers=True)
 
     def state_dict(self):
         state_dict = {
@@ -567,6 +607,8 @@ class Dust(pl.LightningDataModule):
 
         if hasattr(self, "random_nu_model"):
             state_dict["random_nu_state_dict"] = self.random_nu_model.state_dict()
+            state_dict["random_nu_x_scaler"] = self.random_nu_x_scaler.state_dict()
+            state_dict["random_nu_y_scaler"] = self.random_nu_y_scaler.state_dict()
 
         if hasattr(self, "ml_step_model"):
             state_dict["ml_step_state_dict"] = self.ml_step_model.state_dict()
@@ -630,6 +672,10 @@ def load(filename, device="cpu"):
         d.initialize_model(model="random_nu", input_size=2, output_size=1, hidden_units=hidden_units)
 
         d.random_nu_model.load_state_dict(state_dict['random_nu_state_dict'])
+        d.random_nu_x_scaler = StandardScaler()
+        d.random_nu_x_scaler.load_state_dict(state_dict["random_nu_x_scaler"])
+        d.random_nu_y_scaler = StandardScaler()
+        d.random_nu_y_scaler.load_state_dict(state_dict["random_nu_y_scaler"])
 
     if "ml_step_state_dict" in state_dict:
         hidden_units = [state_dict['ml_step_state_dict'][key].size(0) for key in state_dict['ml_step_state_dict'] if 'sig_net' in key and '0.weight' in key]
@@ -658,7 +704,7 @@ class MultiLayerPerceptron(nn.Module):
         for hidden_unit in hidden_units:
             layer = nn.Linear(input_size, hidden_unit)
             all_layers.append(layer)
-            all_layers.append(nn.Sigmoid())
+            all_layers.append(nn.LeakyReLU())
             input_size = hidden_unit
 
         all_layers.append(nn.Linear(hidden_units[-1], output_size))
@@ -670,6 +716,12 @@ class MultiLayerPerceptron(nn.Module):
     def loss(self, x, y):
         return nn.functional.mse_loss(self(x), y)
     
+def softClampAsymAdvanced(value, negAlpha, posAlpha):
+    reLU = torch.nn.ReLU()
+    posValues = (2.0 * posAlpha / torch.pi) * torch.arctan(reLU(value) / posAlpha)
+    negValues = (2.0 * negAlpha / torch.pi) * torch.arctan(-reLU(-value) / negAlpha)
+    return negValues + posValues
+
 class RealNVP(nn.Module):
     def __init__(self, input_size, hidden_units=48, conditional_size=0):
         super().__init__()
@@ -686,7 +738,8 @@ class RealNVP(nn.Module):
         self.mu_net = nn.Sequential(
                     nn.Linear(self.k + self.c, hidden_units),
                     nn.LeakyReLU(),
-                    nn.Linear(hidden_units, self.d - self.k))
+                    nn.Linear(hidden_units, self.d - self.k),
+                    nn.Tanh())
 
         base_mu, base_cov = torch.zeros(input_size), torch.eye(input_size)
         self.base_dist = MultivariateNormal(base_mu, base_cov)
@@ -711,6 +764,7 @@ class RealNVP(nn.Module):
         else:
             sig = self.sig_net(x1)
             mu = self.mu_net(x1)
+        #sig = softClampAsymAdvanced(sig, 2.0, 0.1)
 
         z1, z2 = x1, x2 * torch.exp(sig) + mu
 
@@ -740,11 +794,60 @@ class RealNVP(nn.Module):
         else:
             sig = self.sig_net(z1)
             mu = self.mu_net(z1)
+        #sig = softClampAsymAdvanced(sig, 2.0, 0.1)
         x2 = (z2 - mu) * torch.exp(-sig)
 
         if flip:
             x2, x1 = x1, x2
         return torch.cat([x1, x2], -1)
+
+
+class TrainableLOFTLayer(nn.Module):
+
+    def __init__(self, dim, initial_t, train_t):
+        assert(initial_t >= 1.0)
+        super().__init__()
+        self.dim = dim
+        self.rep_t = torch.ones(dim) * (initial_t - 1.0) # reparameterization of t
+        self.rep_t = torch.nn.Parameter(self.rep_t, requires_grad=train_t)
+
+        base_mu, base_cov = torch.zeros(dim), torch.eye(dim)
+        self.base_dist = MultivariateNormal(base_mu, base_cov)
+
+    def inverse(self, z):
+        t = self.get_t()
+
+        new_value, part1 = TrainableLOFTLayer.LOFT_forward_static(t, z)
+
+        #log_derivatives = - torch.log(part1 + 1.0)
+
+        #log_det = torch.sum(log_derivatives, axis = 1)
+
+        return new_value
+
+    def get_t(self):
+        return 1.0 + torch.nn.functional.softplus(self.rep_t)
+
+    def LOFT_forward_static(t, z):
+        part1 = torch.max(torch.abs(z) - t, torch.tensor(0.0))
+        part2 = torch.min(torch.abs(z), t)
+
+        new_value = torch.sign(z) * (torch.log(part1 + 1) + part2)
+
+        return new_value, part1
+
+    def forward(self, z):
+        t = self.get_t()
+
+        part1 = torch.max(torch.abs(z) - t, torch.tensor(0.0))
+        part2 = torch.min(torch.abs(z), t)
+
+        new_value = torch.sign(z) * (torch.exp(part1) - 1.0 + part2)
+
+        log_det = torch.sum(part1, axis = 1)
+        log_pz = self.base_dist.log_prob(new_value)
+
+        return new_value, log_pz, log_det
     
 
 class StackedNVP(nn.Module):
@@ -754,6 +857,8 @@ class StackedNVP(nn.Module):
             RealNVP(input_size, hidden_units=hidden_units, conditional_size=conditional_size) for _ in range(nflows)
         ])
         self.flips = [True if i%2 else False for i in range(nflows)]
+
+        self.loft = TrainableLOFTLayer(input_size, 1.0, True)
 
         base_mu, base_cov = torch.zeros(input_size), torch.eye(input_size)
         self.base_dist = MultivariateNormal(base_mu, base_cov)
@@ -766,6 +871,8 @@ class StackedNVP(nn.Module):
     def forward(self, x):
         log_jacobs = []
 
+        x, log_pz, lj = self.loft(x)
+
         for bijector, f in zip(self.bijectors, self.flips):
             x, log_pz, lj = bijector(x, flip=f)
             log_jacobs.append(lj)
@@ -775,6 +882,7 @@ class StackedNVP(nn.Module):
     def inverse(self, z):
         for bijector, f in zip(reversed(self.bijectors), reversed(self.flips)):
             z = bijector.inverse(z, flip=f)
+        z = self.loft.inverse(z)
         return z
 
     def loss(self, x):
