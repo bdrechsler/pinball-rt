@@ -196,17 +196,11 @@ class Grid:
 
         ip = iphotons[wp.tid()]
 
-        if photon_list.absorb[ip]:
-            deposited_energy = 10.**(wp.log10(photon_list.energy[ip]) + wp.log10(distances[ip]) + wp.log10(photon_list.kabs[ip]) + wp.log10(photon_list.density[ip]))
-            if track:
-                photon_list.deposited_energy[ip] += deposited_energy
-            else:
-                photon_list.deposited_energy[ip] = deposited_energy
+        deposited_energy = 10.**(wp.log10(photon_list.energy[ip]) + wp.log10(distances[ip]) + wp.log10(photon_list.kabs[ip]) + wp.log10(photon_list.density[ip]))
+        if track:
+            photon_list.deposited_energy[ip] += deposited_energy
         else:
-            if track:
-                photon_list.deposited_energy[ip] += 0.
-            else:
-                photon_list.deposited_energy[ip] = 0.
+            photon_list.deposited_energy[ip] = deposited_energy
 
     @wp.kernel
     def reduce_tau(photon_list: PhotonList,
