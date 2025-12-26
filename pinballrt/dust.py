@@ -230,8 +230,16 @@ class Dust(pl.LightningDataModule):
         ksi = torch.rand(int(nphotons), device=wp.device_to_torch(wp.get_device()), dtype=torch.float32)
 
         test_x = torch.transpose(torch.vstack((torch.log10(temperature), ksi)), 0, 1)
+        test_x = self.random_nu_x_scaler.transform(test_x)
 
-        log10_nu = torch.clamp(self.random_nu_model(test_x).detach(), self.log10_nu_min, self.log10_nu_max)
+        if nphotons > 250000:
+            test_x = TensorDataset(test_x)
+            loader = DataLoader(test_x, batch_size=250000)
+
+            log10_nu = torch.cat([torch.clamp(self.random_nu_y_scaler.inverse_transform(self.random_nu_model(X).detach()), self.log10_nu_min, self.log10_nu_max) for X, in loader], 0)
+        else:
+            log10_nu = torch.clamp(self.random_nu_y_scaler.inverse_transform(self.random_nu_model(test_x).detach()), self.log10_nu_min, self.log10_nu_max)
+        
         nu = wp.from_torch(10.**torch.flatten(log10_nu))
 
         return nu
