@@ -342,7 +342,7 @@ class Dust(pl.LightningDataModule):
         '''
         self.batch_size = batch_size
 
-        self.trainer.fit_loop.max_epochs += max_epochs
+        self.trainer.fit_loop.max_epochs += epochs
         self.trainer.fit(model=self.dustLM, datamodule=self, ckpt_path=ckpt_path)
 
     def test_model(self, plot=False):

@@ -322,8 +322,11 @@ class Grid:
         t2 = time.time()
         photon_temperature_time = t2 - t1
 
+        t1 = time.time()
         if not scattering and nabsorb > 0:
             new_frequency = self.dust.random_nu(photon_list, subset=absorb)
+        t2 = time.time()
+        absorb_random_nu_time = t2 - t1
 
         t1 = time.time()
         if not scattering and nabsorb > 0:
@@ -351,7 +354,7 @@ class Grid:
                       dim=(interact.sum(),),
                       inputs=[photon_list, self.grid, iphotons])
 
-        return photon_temperature_time, dust_interpolation_time, photon_loc_time
+        return photon_temperature_time, dust_interpolation_time, photon_loc_time, absorb_random_nu_time
 
     def update_grid(self, timing={}):
         with wp.ScopedDevice(self.device):
@@ -508,6 +511,7 @@ class Grid:
             removing_photons_time = 0.
             absorb_time = 0.
             ml_step_time = 0.
+            absorb_random_nu_time = 0.
 
             t1 = time.time()
             photon_list.kabs = self.dust.interpolate_kabs_wp(photon_list, iphotons)
@@ -635,9 +639,10 @@ class Grid:
                 interaction_indices = iphotons_original[interaction]
                 absorb = torch.logical_and(interaction, wp.to_torch(photon_list.absorb))
                 absorb_indices = iphotons_original[absorb]
-                tmp_photon_temp_time, tmp_dust_interpolation_time, tmp_photon_loc_time = self.interact(photon_list, absorb, absorb_indices, interaction, interaction_indices, learning=learning)
+                tmp_photon_temp_time, tmp_dust_interpolation_time, tmp_photon_loc_time, tmp_absorb_random_nu_time = self.interact(photon_list, absorb, absorb_indices, interaction, interaction_indices, learning=learning)
                 t2 = time.time()
                 absorb_time += t2 - t1 - tmp_dust_interpolation_time - tmp_photon_loc_time
+                absorb_random_nu_time += tmp_absorb_random_nu_time
                 #absorb_time += tmp_time
                 dust_interpolation_time += tmp_dust_interpolation_time
                 photon_loc_time += tmp_photon_loc_time
@@ -655,6 +660,7 @@ class Grid:
             timing["removing_photons_time"] = removing_photons_time
             timing["absorb_time"] = absorb_time
             timing["ml_step_time"] = ml_step_time
+            timing["absorb_random_nu_time"] = absorb_random_nu_time
 
     def propagate_photons_scattering(self, photon_list: PhotonList, inu: int, debug=False, timing={}):
         with wp.ScopedDevice(self.device):
@@ -757,7 +763,7 @@ class Grid:
                 interaction_indices = iphotons_original[interaction]
                 absorb = torch.logical_and(interaction, wp.to_torch(photon_list.absorb))
                 absorb_indices = iphotons_original[absorb]
-                tmp_photon_temp_time, tmp_dust_interpolation_time, tmp_photon_loc_time = self.interact(photon_list, absorb, absorb_indices, interaction, interaction_indices, scattering=True)
+                tmp_photon_temp_time, tmp_dust_interpolation_time, tmp_photon_loc_time, tmp_absorb_random_nu_time = self.interact(photon_list, absorb, absorb_indices, interaction, interaction_indices, scattering=True)
                 t2 = time.time()
                 absorb_time += t2 - t1 - tmp_photon_loc_time
                 #absorb_time += tmp_time
