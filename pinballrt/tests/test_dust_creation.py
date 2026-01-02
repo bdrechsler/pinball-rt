@@ -29,7 +29,7 @@ def test_learn_random_nu():
     Test the learn_random_nu method of the Dust class.
     """
 
-    d = load('yso.dst')
+    d = load(os.path.join(os.path.dirname(__file__), "data/yso.dst"))
 
     # Test the learn_random_nu method.
 
@@ -42,7 +42,7 @@ def test_learn_ml_step():
     """
     # Load the dust file.
 
-    d = load('yso.dst')
+    d = load(os.path.join(os.path.dirname(__file__), "data/yso.dst"))
 
     # Copy the pre-existing sim_results.csv to the current directory for training.
 
