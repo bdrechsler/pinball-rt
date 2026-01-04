@@ -34,7 +34,8 @@ def test_learn_random_nu():
     # Test the learn_random_nu method.
 
     n_samples = 1000
-    d.learn(model="random_nu", nsamples=n_samples, max_epochs=10)
+    d.learn(model="random_nu", nsamples=n_samples)
+    d.fit(epochs=10)
 
 def test_learn_ml_step():
     """
@@ -51,4 +52,5 @@ def test_learn_ml_step():
     # Test the learn_ml_step method.
 
     n_samples = 1000
-    d.learn(model="ml_step", nsamples=n_samples, max_epochs=10)
+    d.learn(model="ml_step", nsamples=n_samples)
+    d.fit(epochs=10)
