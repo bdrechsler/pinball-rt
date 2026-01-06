@@ -96,10 +96,9 @@ class Grid:
             cell_coords = []
             if scattering:
                 ksi = np.random.rand(nphotons_per_source)
-                multiplier = 1. / (nphotons_per_source * 100)
                 if self.luminosity.sum() == 0:
                     self.luminosity += EPSILON
-                cum_lum = np.cumsum(np.maximum(self.luminosity, self.luminosity.max()*multiplier).flatten()).reshape(self.shape) / np.maximum(self.luminosity, self.luminosity.max()*multiplier).sum()
+                cum_lum = np.cumsum(self.luminosity.flatten()).reshape(self.shape) / self.luminosity.sum()
 
                 for i in range(nphotons_per_source):
                     cell_coords += [np.where(cum_lum[cum_lum > ksi[i]].min() == cum_lum)]
@@ -759,7 +758,7 @@ class Grid:
                 removing_photons_time += t2 - t1
 
                 t1 = time.time()
-                interaction = torch.logical_and(wp.to_torch(photon_list.tau) <= 1e-10, wp.to_torch(photon_list.in_grid))
+                interaction = torch.logical_and(wp.to_torch(photon_list.tau) <= 1e-5, wp.to_torch(photon_list.in_grid))
                 interaction_indices = iphotons_original[interaction]
                 absorb = torch.logical_and(interaction, wp.to_torch(photon_list.absorb))
                 absorb_indices = iphotons_original[absorb]
@@ -810,10 +809,10 @@ class Grid:
         alpha_ext = 0.
         alpha_sca = 0.
 
-        tau_cell = tau_cell + s[ir]*ray_list.kext[iray,inu]*grid.density[ix,iy,iz]
-        alpha_ext = alpha_ext + ray_list.kext[iray,inu]*grid.density[ix,iy,iz]
-        alpha_sca = alpha_sca + ray_list.kext[iray,inu]*ray_list.ray_albedo[iray,inu]*grid.density[ix,iy,iz]
-        intensity_abs = intensity_abs + ray_list.kext[iray,inu] * (1. - ray_list.ray_albedo[iray,inu]) * \
+        tau_cell = tau_cell + s[ir]*ray_list.kext[ir,inu]*grid.density[ix,iy,iz]
+        alpha_ext = alpha_ext + ray_list.kext[ir,inu]*grid.density[ix,iy,iz]
+        alpha_sca = alpha_sca + ray_list.kext[ir,inu]*ray_list.ray_albedo[ir,inu]*grid.density[ix,iy,iz]
+        intensity_abs = intensity_abs + ray_list.kext[ir,inu] * (1. - ray_list.ray_albedo[ir,inu]) * \
                 grid.density[ix,iy,iz] * planck_function(ray_list.frequency[inu], grid.temperature[ix,iy,iz])
 
         albedo_total = alpha_sca / alpha_ext
@@ -823,7 +822,7 @@ class Grid:
 
         intensity_sca = (1.0 - wp.exp(-tau_cell)) * albedo_total * scattering[inu,ix,iy,iz]
 
-        intensity_cell = intensity_abs
+        intensity_cell = intensity_abs + intensity_sca
 
         ray_list.intensity[ir,inu] = (ray_list.intensity[ir,inu] + intensity_cell * wp.exp(-ray_list.tau_intensity[ir,inu])) * (1. - wp.float32(ray_list.pixel_too_large[ir]))
         ray_list.tau_intensity[ir,inu] = ray_list.tau_intensity[ir,inu] + tau_cell

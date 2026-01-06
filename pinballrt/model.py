@@ -179,7 +179,7 @@ class Model:
             result = self.pool.map(lambda grid: grid.propagate_photons_scattering(grid.emit(int(nphotons / self.ncores), wavelength, scattering=True, timing=iter_timing), i, timing=iter_timing), self.grid_list[device])
             success = [r for r in result]
             t2 = time.time()
-            print("Time:", t2 - t1)
+            iter_timing["Total Time"] = t2 - t1
 
             total_scattering = torch.mean(torch.cat([torch.unsqueeze(grid.scattering, 0) for grid in self.grid_list[device]]), axis=0) / (4.*np.pi * self.grid.volume.to(device))
             for dev in self.grid_list:
@@ -252,11 +252,40 @@ class Model:
                         zip(self.camera_list[device], np.array_split(new_x, self.ncores), np.array_split(new_y, self.ncores))))).sum(axis=0) * (u.Jy / u.steradian) * \
                         image.pixel_size**2
 
-        source_intensity = np.array(list(self.pool.map(lambda camera: camera.raytrace_sources(image.x, image.y, nx, ny, image.nu, distance, 
-                        nrays=int(1000/self.ncores)).numpy(), self.camera_list[device]))).mean(axis=0) * u.Jy
+        source_intensity = np.array(list(self.pool.map(lambda camera: camera.raytrace_sources(image.x, image.y, nx, ny, image.nu, physical_pixel_size*self.grid.distance_unit, 
+                        nrays=int(1000/self.ncores)).numpy(), self.camera_list[device]))).mean(axis=0) * u.Jy/u.steradian * image.pixel_size**2
 
         intensity += source_intensity
 
-        image = image.assign(intensity=(("x","y","lam"), intensity))
+        image = image.assign(intensity=(("x","y","lam"), intensity.to(u.Jy)))
 
         return image
+
+    def make_spectrum(self, lam=np.array([1.])*u.micron, incl=0, pa=0, distance=1*u.pc, nphotons=10000, device="cpu"):
+        """
+        Raytrace to make a spectrum.
+
+        Parameters
+        ----------
+        lam : array-like Quantity
+            The wavelengths to simulate.
+        incl : Quantity
+            The inclination angle of the image.
+        pa : Quantity
+            The position angle of the image.
+        distance : Quantity
+            The distance to the image plane in parsecs.
+        nphotons : int
+            The number of photons to simulate, per wavelength.
+        device : str, optional
+            The device to use for the simulation (default is "cpu").
+        Returns
+        -------
+        spectrum : xarray.Dataset
+            The resulting spectrum.
+        """
+        image = self.make_image(lam=lam, incl=incl, pa=pa, distance=distance, nphotons=nphotons, device=device)
+
+        spectrum = image.sum(dim=["x","y"])
+
+        return spectrum
