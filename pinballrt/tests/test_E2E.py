@@ -74,7 +74,7 @@ def update_test(test, grid_class):
     if not found:
         raise ValueError(f"Grid class {grid_class} not found in test data. Please add it to the test_data list in test_E2E.py.")
     
-    temperature, scattering, image = test(grid_class, data[1], return_vals=True)
+    temperature, scattering, image = test(grid_class, data[1], data[2], return_vals=True)
 
     np.savez(os.path.join(os.path.dirname(__file__), f"data/{grid_class.__name__}_E2E_temperature.npz"), temperature=temperature)
     np.savez(os.path.join(os.path.dirname(__file__), f"data/{grid_class.__name__}_E2E_scattering.npz"), scattering=scattering)
