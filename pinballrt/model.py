@@ -78,7 +78,7 @@ class Model:
             for grid in self.grid_list[device]:
                 grid.add_star(star)
 
-    def thermal_mc(self, nphotons, use_ml_step=False, Qthresh=2.0, Delthresh=1.1, p=99., device="cpu", return_timing=False):
+    def thermal_mc(self, nphotons, use_ml_step=False, Qthresh=2.0, Delthresh=1.1, p=99., device="cpu", return_timing=False, nbatch=1):
         """
         Perform a thermal Monte Carlo simulation.
 
@@ -108,8 +108,8 @@ class Model:
 
             t1 = time.time()
             result = self.pool.map(lambda grid: grid.propagate_photons(
-                    grid.emit(int(nphotons / self.ncores), timing=iter_timing), 
-                    use_ml_step=use_ml_step, timing=iter_timing), self.grid_list[device])
+                    grid.emit(int(nphotons / self.ncores / nbatch), timing=iter_timing), 
+                    use_ml_step=use_ml_step, timing=iter_timing), self.grid_list[device]*nbatch)
             success = [r for r in result]
             t2 = time.time()
             iter_timing["Total Time"] = t2 - t1
@@ -249,15 +249,14 @@ class Model:
         new_x, new_y = new_x.values.flatten(), new_y.values.flatten()
 
         intensity = np.array(list(self.pool.map(lambda x: x[0].raytrace(x[1], x[2], nx, ny, physical_pixel_size, image.nu).numpy(), 
-                        zip(self.camera_list[device], np.array_split(new_x, self.ncores), np.array_split(new_y, self.ncores))))).sum(axis=0) * (u.Jy / u.steradian) * \
-                        image.pixel_size**2
+                        zip(self.camera_list[device], np.array_split(new_x, self.ncores), np.array_split(new_y, self.ncores))))).sum(axis=0) * (u.Jy / u.steradian)
 
         source_intensity = np.array(list(self.pool.map(lambda camera: camera.raytrace_sources(image.x, image.y, nx, ny, image.nu, physical_pixel_size*self.grid.distance_unit, 
-                        nrays=int(1000/self.ncores)).numpy(), self.camera_list[device]))).mean(axis=0) * u.Jy/u.steradian * image.pixel_size**2
+                        nrays=int(1000/self.ncores)).numpy(), self.camera_list[device]))).mean(axis=0) * u.Jy/u.steradian
 
         intensity += source_intensity
 
-        image = image.assign(intensity=(("x","y","lam"), intensity.to(u.Jy)))
+        image = image.assign(intensity=(("x","y","lam"), intensity.to(u.Jy / u.steradian)))
 
         return image
 
@@ -287,5 +286,6 @@ class Model:
         image = self.make_image(lam=lam, incl=incl, pa=pa, distance=distance, nphotons=nphotons, device=device)
 
         spectrum = image.sum(dim=["x","y"])
+        spectrum = spectrum.assign(intensity=(("lam",), (spectrum.intensity.data * image.pixel_size**2).to(u.Jy)))
 
         return spectrum
