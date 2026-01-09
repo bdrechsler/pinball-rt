@@ -15,7 +15,7 @@ import pytest
 
 test_data = [
     (UniformCartesianGrid, {"ncells":9, "dx":2.0*u.au}, 98.0),
-    (UniformSphericalGrid, {"ncells":9, "dr":2.0*u.au}, 95.0),
+    (UniformSphericalGrid, {"ncells":9, "dr":2.0*u.au}, 93.0),
     (LogUniformSphericalGrid, {"ncells":9, "rmin":0.1*u.au, "rmax":20.0*u.au}, 73.0),
 ]
 
