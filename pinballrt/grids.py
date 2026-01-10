@@ -701,7 +701,6 @@ class Grid:
             iphotons = iphotons_original[torch.logical_and(wp.to_torch(photon_list.in_grid), wp.to_torch(photon_list.total_tau_abs) < 30.)]
             nphotons_done = iphotons_original.size(0) - iphotons.size(0)
             nphotons = iphotons.size(0)
-            print("Starting with ", nphotons, " photons inside the grid.")
 
             count = 0
             nphotons_done = 0
