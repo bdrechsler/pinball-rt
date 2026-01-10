@@ -36,6 +36,7 @@ def test_learn_random_nu():
     n_samples = 1000
     d.learn(model="random_nu", nsamples=n_samples)
     d.fit(epochs=10)
+    d.test_model(plot=True)
 
 def test_learn_ml_step():
     """
@@ -44,6 +45,10 @@ def test_learn_ml_step():
     # Load the dust file.
 
     d = load(os.path.join(os.path.dirname(__file__), "data/yso.dst"))
+
+    # Run a simple dust simulation to test the machinery.
+
+    d.run_dust_simulation(nphotons=100, tau_range=(0.5, 1.0), nu_range=(d.nu.max()/10, d.nu.max()), use_ml_step=False)
 
     # Copy the pre-existing sim_results.csv to the current directory for training.
 
@@ -54,3 +59,4 @@ def test_learn_ml_step():
     n_samples = 1000
     d.learn(model="ml_step", nsamples=n_samples)
     d.fit(epochs=10)
+    d.test_model(plot=True)
