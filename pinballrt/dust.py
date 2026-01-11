@@ -298,6 +298,12 @@ class Dust(pl.LightningDataModule):
             The fraction of the remaining samples (after testing) to use for validation.
         hidden_units : tuple
             The number of hidden units in each layer of the neural network.
+        tau_range : tuple
+            The range of optical depths to sample from (in log10) for the ml_step model.
+        temperature_range : tuple
+            The range of temperatures to sample from (in log10) for the ml_step model.
+        nu_range : tuple
+            The range of frequencies to sample from (in GHz) for the ml_step model. If None, use the full range of the dust opacities.
         """
         self.current_model = model
         self.nsamples = nsamples
@@ -336,9 +342,9 @@ class Dust(pl.LightningDataModule):
         Run the model fit.
 
         Parameters:
-        ----------
-        max_epochs : int
-            The maximum number of epochs to train the model.
+        -----------
+        epochs : int
+            The number of epochs to train the model.
         '''
         self.batch_size = batch_size
 
@@ -350,7 +356,7 @@ class Dust(pl.LightningDataModule):
         Test the model fit.
 
         Parameters:
-        ----------
+        -----------
         plot : bool
             Whether to plot the results after training.
         '''
@@ -633,6 +639,14 @@ class Dust(pl.LightningDataModule):
         return state_dict
 
     def save(self, filename):
+        """
+        Save the Dust object to a file.
+        
+        Parameters
+        ----------
+        filename : str
+            The filename to save the Dust object to.
+        """
         torch.save(self.state_dict(), filename)
 
     def copy(self, device="cpu"):
