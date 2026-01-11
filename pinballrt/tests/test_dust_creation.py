@@ -20,7 +20,7 @@ def test_Dust():
 
     d = Dust(lam, kabs, ksca)
 
-    assert d.kmean.value == 2831.6281816798232
+    assert np.abs(d.kmean.value - 2831.6281816798232) < 1e-10
 
     d.save("tmp.dst")
 
