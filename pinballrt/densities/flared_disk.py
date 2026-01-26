@@ -13,7 +13,7 @@ class FlaredDisk():
         self.r_0 = r_0
         self.h_0 = h_0
 
-        self.gamma = self.p - self.beta
+        self.gamma = self.p + self.beta
 
     
     def surface_density(self, r):
@@ -26,5 +26,4 @@ class FlaredDisk():
     def density(self, r, z):
         sigma = self.surface_density(r)
         h = self.scale_height(r)
-
         return (sigma / (np.sqrt(2*np.pi)*h)*np.exp(-0.5*(z/h)**2))
