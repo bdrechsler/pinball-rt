@@ -4,7 +4,8 @@ from scipy.integrate import nquad
 
 class FlaredDisk():
 
-    def __init__(self, mass, rmin, rmax, p, beta, r_0, h_0):
+    def __init__(self, mass=1e-4*u.Msun, rmin=0.1*u.au, rmax=100*u.au, p=-1, beta=1.25, 
+                 r_0=1*u.au, h_0=0.1*u.au):
         self.mass = mass # gas mass
         self.rmin = rmin
         self.rmax = rmax
