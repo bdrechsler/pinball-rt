@@ -38,13 +38,14 @@ class GridStruct:
     p: wp.array3d(dtype=float)
 
 class Grid:
-    def __init__(self, _w1, _w2, _w3, device='cpu'):
+    def __init__(self, _w1, _w2, _w3, device='cpu', coordsys=None):
         self.device = device
         with wp.ScopedDevice(device):
             self.grid = GridStruct()
             self.grid.w1 = wp.array(_w1, dtype=float)
             self.grid.w2 = wp.array(_w2, dtype=float)
             self.grid.w3 = wp.array(_w3, dtype=float)
+            self.coordsys = coordsys
             self.grid.n1 = _w1.size-1
             self.grid.n2 = _w2.size-1
             self.grid.n3 = _w3.size-1
@@ -972,7 +973,7 @@ class UniformCartesianGrid(Grid):
         _w2 = np.linspace(-0.5*n2*dy.value, 0.5*n2*dy.value, n2+1)
         _w3 = np.linspace(-0.5*n3*dz.value, 0.5*n3*dz.value, n3+1)
 
-        super().__init__(_w1, _w2, _w3, device=device)
+        super().__init__(_w1, _w2, _w3, device=device, coordsys="cartesian")
 
         with wp.ScopedDevice(self.device):
             self.volume = torch.ones((self.grid.n1, self.grid.n2, self.grid.n3), device=wp.device_to_torch(wp.get_device())) * (dx.value * dy.value * dz.value)
@@ -1269,7 +1270,7 @@ class UniformSphericalGrid(Grid):
         _w2 = np.linspace(0, _w2_max, n2+1)
         _w3 = np.linspace(0, 2*np.pi, n3+1)
 
-        super().__init__(_w1, _w2, _w3, device=device)
+        super().__init__(_w1, _w2, _w3, device=device, coordsys='spherical')
 
         with wp.ScopedDevice(self.device):
             self.grid.sin_w2 = wp.array(np.sin(_w2), dtype=float)
@@ -1737,7 +1738,7 @@ class LogUniformSphericalGrid(UniformSphericalGrid):
         _w2 = np.linspace(0, _w2_max, n2+1)
         _w3 = np.linspace(0, 2*np.pi, n3+1)
 
-        super(UniformSphericalGrid, self).__init__(_w1, _w2, _w3, device=device)
+        super(UniformSphericalGrid, self).__init__(_w1, _w2, _w3, device=device, coordsys='spherical')
 
         with wp.ScopedDevice(self.device):
             self.grid.logw1 = wp.array(np.log10(_w1[1:]), dtype=float) # Exclude the zero at the start
