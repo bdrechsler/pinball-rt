@@ -82,6 +82,7 @@ class Model:
         density = component.density_grid(self.grid)
         self.add_density(density=density, dust=dust)
 
+
     def thermal_mc(self, nphotons, use_ml_step=False, Qthresh=2.0, Delthresh=1.1, p=99., device="cpu", return_timing=False):
         """
         Perform a thermal Monte Carlo simulation.
@@ -259,7 +260,7 @@ class Model:
         source_intensity = np.array(list(self.pool.map(lambda camera: camera.raytrace_sources(image.x, image.y, nx, ny, image.nu, distance, 
                         nrays=int(1000/self.ncores)).numpy(), self.camera_list[device]))).mean(axis=0) * u.Jy
 
-        intensity += source_intensity
+        # intensity += source_intensity
 
         image = image.assign(intensity=(("x","y","lam"), intensity))
 
