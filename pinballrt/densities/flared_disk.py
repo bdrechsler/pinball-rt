@@ -28,3 +28,35 @@ class FlaredDisk():
         sigma = self.surface_density(r)
         h = self.scale_height(r)
         return (sigma / (np.sqrt(2*np.pi)*h)*np.exp(-0.5*(z/h)**2))
+    
+    def density_grid(self, grid):
+        # get grid walls
+        w1 = np.array(grid.grid.w1)
+        w2 = np.array(grid.grid.w1)
+        w3 = np.array(grid.grid.w3)
+
+        # get grid centers
+        x1 = (w1[:-1] + w1[1:]) / 2.
+        x2 = (w2[:-1] + w2[1:]) / 2.
+        x3 = (w3[:-1] + w3[1:]) / 2.
+
+        # get coordinate system
+        coordsys = grid.coordsys
+
+        # transform the grid coordinates if necessary
+        if coordsys == "spherical":
+            rt, tt, pp = np.meshgrid(x1, x2, x3, indexing='ij')
+            rr = rt*np.sin(tt)
+            zz = rt*np.cos(tt)
+        elif coordsys == "cartesian":
+            xx, yy, zz = np.meshgrid(x1, x2, x2, indexing='ij')
+            rr = np.sqrt(xx**2 + yy**2)
+        elif coordsys == "cylindrical":
+            rr, pp, zz = np.meshgrid(x1, x2, x2, indexing='ij')
+
+        # calculate the density grid
+        return self.density(rr, zz)
+        
+
+
+
