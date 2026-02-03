@@ -84,6 +84,11 @@ class Model:
         self.components.append(component)
         self.add_density(density=density, dust=dust)
 
+    def log_l(self, data):
+        resdiual= data.intensity - self.image.intensity
+        chi2 = np.sum((resdiual/data.err)**2)
+        return -0.5 * chi2
+
 
 
     def thermal_mc(self, nphotons, use_ml_step=False, Qthresh=2.0, Delthresh=1.1, p=99., device="cpu", return_timing=False):
@@ -266,5 +271,7 @@ class Model:
         # intensity += source_intensity
 
         image = image.assign(intensity=(("x","y","lam"), intensity))
+        self.image = image
+
 
         return image
