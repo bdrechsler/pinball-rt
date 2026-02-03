@@ -49,6 +49,7 @@ class Model:
             
         self.ncores = ncores
         self.pool = pool
+        self.components = []
 
     def add_density(self, density: u.Quantity, dust):
         """
@@ -80,7 +81,9 @@ class Model:
 
     def add_component(self, component, dust):
         density = component.density_grid(self.grid)
+        self.components.append(component)
         self.add_density(density=density, dust=dust)
+
 
 
     def thermal_mc(self, nphotons, use_ml_step=False, Qthresh=2.0, Delthresh=1.1, p=99., device="cpu", return_timing=False):
