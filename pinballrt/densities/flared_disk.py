@@ -5,7 +5,7 @@ from scipy.integrate import nquad
 class FlaredDisk():
 
     def __init__(self, mass=1e-4*u.Msun, rmin=0.1*u.au, rmax=100*u.au, p=-1., beta=1.25, 
-                 r_0=1*u.au, h_0=0.1*u.au):
+                 r_0=1*u.au, h_0=0.1*u.au, params=None):
         self.mass = mass / 100.
         self.rmin = rmin
         self.rmax = rmax
@@ -15,6 +15,19 @@ class FlaredDisk():
         self.h_0 = h_0
 
         self.gamma = self.p + self.beta
+
+        if params:
+            self.params = params
+        else:
+            params= {
+                "LogMass": {"value":-4, "range":(-6, -2), "fixed":False, "units":u.Msun},
+                "LogRmin": {"value":-1., "range":(-3., 0.), "fixed":False, "units":u.au},
+                "LogRmax": {"value":2., "range":(1., 3.), "fixed":False, "units":u.au},
+                "p": {"value":-1, "range":(0., -2.), "fixed":False, "units":None},
+                "beta": {"value":1.25, "range":(1., 2.), "fixed":False, "units":None},
+                "R_0": {"value": 1., "range": (0., 10.), "fixed": True, "units":u.au},
+                "LogH_0": {"value":-1, "range":(-2, 1), "fixed":False, "units":u.au},
+                }
 
     
     def surface_density(self, r):
