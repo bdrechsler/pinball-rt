@@ -49,7 +49,9 @@ class Model:
             
         self.ncores = ncores
         self.pool = pool
-        self.components = []
+        self.components = {}
+        self._imaged = False
+
 
     def add_density(self, density: u.Quantity, dust):
         """
@@ -81,10 +83,24 @@ class Model:
 
     def add_component(self, component, dust):
         density = component.density_grid(self.grid)
-        self.components.append(component)
+        self.components[component.name] = component
         self.add_density(density=density, dust=dust)
+        self._imaged = False
 
-    def log_l(self, data):
+    def set_component_params(self, component_name, **pkwargs):
+        component = self.components['component_name']
+        component.set_params(**pkwargs)
+        density = component.density_grid(self.grid)
+        self.add_density(density)
+        self._imaged = False
+
+
+    def log_l(self, data, **pkwargs):
+        if pkwargs:
+            for component in self.components:
+                self.set_component_params(component.name, **pkwargs)
+                self.thermal_mc(nphotons=1000000)
+                self.make_image()
         resdiual= data.intensity - self.image.intensity
         chi2 = np.sum((resdiual/data.err)**2)
         return -0.5 * chi2
@@ -273,5 +289,5 @@ class Model:
         image = image.assign(intensity=(("x","y","lam"), intensity))
         self.image = image
 
-
+        self._imaged = True
         return image
