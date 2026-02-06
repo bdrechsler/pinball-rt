@@ -4,23 +4,9 @@ from scipy.integrate import nquad
 
 class FlaredDisk():
 
-    def __init__(self, mass=1e-4*u.Msun, rmin=0.1*u.au, rmax=100*u.au, p=-1., beta=1.25, 
-                 r_0=1*u.au, h_0=0.1*u.au, params=None):
-        self.mass = mass / 100.
-        self.rmin = rmin
-        self.rmax = rmax
-        self.p = p
-        self.beta = beta
-        self.r_0 = r_0
-        self.h_0 = h_0
+    def __init__(self, params=None):
 
-        self.gamma = self.p + self.beta
-
-        if params:
-            self.params = params
-        else:
-            params= {
-                "LogMass": {"value":-4, "range":(-6, -2), "fixed":False, "units":u.Msun},
+        self._default_params = {"LogMass": {"value":-4, "range":(-6, -2), "fixed":False, "units":u.Msun},
                 "LogRmin": {"value":-1., "range":(-3., 0.), "fixed":False, "units":u.au},
                 "LogRmax": {"value":2., "range":(1., 3.), "fixed":False, "units":u.au},
                 "p": {"value":-1, "range":(0., -2.), "fixed":False, "units":None},
@@ -28,8 +14,42 @@ class FlaredDisk():
                 "R_0": {"value": 1., "range": (0., 10.), "fixed": True, "units":u.au},
                 "LogH_0": {"value":-1, "range":(-2, 1), "fixed":False, "units":u.au},
                 }
+        
+        self.params = self._default_params
+        if params:
+            self.set_params(params)
 
-    
+        self.mass = (10**self.params["LogMass"]["value"]) / 100. * self.params["LogMass"]["units"]
+        self.rmin = (10**self.params["LogRmin"]["value"]) * self.params["LogRmin"]["units"]
+        self.rmax = (10**self.params["LogRmax"]["value"]) * self.params["LogRmax"]["units"]
+        self.p = self.params["p"]["value"]
+        self.beta = self.params["beta"]["value"]
+        self.r0 = self.params["R_0"]["value"] * self.params["R_0"]["units"]
+        self.h0 = (10**self.params["LogH_0"]["value"]) * self.params["LogH_0"]["units"]
+
+        self.gamma = self.p + self.beta
+        self.name = "Flared Disk"
+
+    def set_params(self, params=None, value=None, range=None, fixed=None, units=None):
+        if type(params) is dict:
+            for param in params:
+                self.params[param] = params[param]
+        elif type(params) is str:
+            if value:
+                self.params[params]["value"] = value
+            if range:
+                self.params[params]["range"] = range
+            if fixed is not None:
+                self.params[params]["fixed"] = fixed
+            if units:
+                self.params[params]["units"] = units
+
+
+    def print_param_names(self):
+        names = [param for param in self._default_params]
+        print(names)
+            
+
     def surface_density(self, r):
         sigma0 = ((2 - self.gamma) * self.mass) / (2 * np.pi * self.rmax**2)
         sigma = (sigma0 * (r/self.rmax)**(-self.gamma) * np.exp(-(r/self.rmax)**(2-self.gamma))).to(u.g/u.cm**2)
@@ -37,7 +57,7 @@ class FlaredDisk():
         return sigma
     
     def scale_height(self, r):
-        return self.h_0 * (r / self.r_0)**self.beta
+        return self.h0 * (r / self.r0)**self.beta
     
     def density(self, r, z):
         sigma = self.surface_density(r)
