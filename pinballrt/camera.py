@@ -6,34 +6,41 @@ import warp as wp
 import numpy as np
 import xarray as xr
 import torch
+from .component import Component
 
 from .utils import EPSILON
 
-class Camera:
+class Camera(Component):
+    default_params = {"incl": {"value":0, "range":(0., 180.), "fixed":False, "units":u.degree},
+                          "pa": {"value":0., "range":(0., 360.), "fixed":False, "units":u.degree},
+                          "distance": {"value":1., "range":(1., 1000.), "fixed":True, "units":u.pc}}
+    
     def __init__(self, grid):
         self.grid = grid
+        super().__init__(name="camera", params=self.default_params)
 
-    def set_orientation(self, incl, pa, dpc):
+
+    def set_orientation(self):#, incl, pa, dpc):
         # Set viewing angle parameters.
 
         #self.r = (dpc*u.pc).cgs.value;
         self.r = self.grid.grid_size()
-        self.incl = incl.to(u.radian).value
-        self.pa = pa.to(u.radian).value
+        incl = self.incl.to(u.radian).value
+        pa = self.pa.to(u.radian).value
 
-        phi = -np.pi/2 - self.pa
+        phi = -np.pi/2 - pa
 
-        self.i = np.array([self.r*np.sin(self.incl)*np.cos(phi), \
-                self.r*np.sin(self.incl)*np.sin(phi), \
-                self.r*np.cos(self.incl)])
+        self.i = np.array([self.r*np.sin(incl)*np.cos(phi), \
+                self.r*np.sin(incl)*np.sin(phi), \
+                self.r*np.cos(incl)])
 
         self.ex = np.array([-np.sin(phi), np.cos(phi), 0.0])
-        self.ey = np.array([-np.cos(self.incl)*np.cos(phi), \
-                -np.cos(self.incl)*np.sin(phi), \
-                np.sin(self.incl)])
-        self.ez = np.array([-np.sin(self.incl)*np.cos(phi), \
-                -np.sin(self.incl)*np.sin(phi), \
-                -np.cos(self.incl)])
+        self.ey = np.array([-np.cos(incl)*np.cos(phi), \
+                -np.cos(incl)*np.sin(phi), \
+                np.sin(incl)])
+        self.ez = np.array([-np.sin(incl)*np.cos(phi), \
+                -np.sin(incl)*np.sin(phi), \
+                -np.cos(incl)])
 
     def emit_rays(self, x, y, nu, nx, ny, pixel_size):
         xflat, yflat = x.flatten(), y.flatten()

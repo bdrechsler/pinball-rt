@@ -16,6 +16,3 @@ disk = FlaredDisk()
 model.add_component(disk, dust="yso.dst")
 model.add_star(star)
 
-print(np.max(model.grid.grid.density.numpy()))
-
-model.thermal_mc(nphotons=10000, device="cuda")

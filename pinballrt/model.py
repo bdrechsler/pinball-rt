@@ -49,8 +49,11 @@ class Model:
             
         self.ncores = ncores
         self.pool = pool
-        self.components = {}
-        self._imaged = False
+        self.components = {"camera": self.camera}
+        
+        # set default camera parameters
+        self.params = self.camera.params
+        # keep param names simple per copmonent, in model params dictionary add component name
 
 
     def add_density(self, density: u.Quantity, dust):
@@ -85,14 +88,18 @@ class Model:
         density = component.density_grid(self.grid)
         self.components[component.name] = component
         self.add_density(density=density, dust=dust)
-        self._imaged = False
+        
+        for param in component.params:
+            self.params[param] = component.params[param]
 
     def set_component_params(self, component_name, **pkwargs):
         component = self.components['component_name']
         component.set_params(**pkwargs)
         density = component.density_grid(self.grid)
         self.add_density(density)
-        self._imaged = False
+        
+        for param in component.params:
+            self.params[param] = component.params[param]
 
 
     def log_l(self, data, **pkwargs):
@@ -259,7 +266,7 @@ class Model:
 
         for dev in self.camera_list:
             for camera in self.camera_list[dev]:
-                camera.set_orientation(incl, pa, distance)
+                camera.set_orientation()
 
         physical_pixel_size = (pixel_size*distance).to(self.grid.distance_unit, equivalencies=u.dimensionless_angles()).value
 
