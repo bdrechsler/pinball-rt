@@ -79,6 +79,11 @@ class Grid:
 
             self.dust.to_device(wp.device_to_torch(wp.get_device()))
 
+    def _reset_grid(self):
+        self.grid.density = wp.zeros(self.shape, dtype=float)
+        self.grid.energy = wp.zeros(self.shape, dtype=float)
+        self.grid.temperature = wp.array3d(np.ones(self.shape)*0.1, dtype=float)
+
     def add_star(self, star):
         self.star = star
 

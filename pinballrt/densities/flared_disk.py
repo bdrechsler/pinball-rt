@@ -5,16 +5,16 @@ from ..component import Component
 
 class FlaredDisk(Component):
 
-    default_params = {"LogM_disk": {"value":-5, "range":(-6, -2), "fixed":False, "units":u.Msun},
-                      "LogR_disk_min": {"value":-1., "range":(-3., 0.), "fixed":False, "units":u.au},
-                      "LogR_disk_max": {"value":2., "range":(1., 3.), "fixed":False, "units":u.au},
+    default_params = {"LogM": {"value":-5, "range":(-6, -2), "fixed":False, "units":u.Msun},
+                      "LogR_min": {"value":-1., "range":(-3., 0.), "fixed":False, "units":u.au},
+                      "LogR_max": {"value":2., "range":(1., 3.), "fixed":False, "units":u.au},
                       "p": {"value":-1, "range":(0., -2.), "fixed":False, "units":None}, 
                       "beta": {"value":1.25, "range":(1., 2.), "fixed":False, "units":None},
-                      "R_disk_0": {"value": 1., "range": (0., 10.), "fixed": True, "units":u.au},
+                      "R_0": {"value": 1., "range": (0., 10.), "fixed": True, "units":u.au},
                       "LogH_0": {"value":-1, "range":(-2, 1), "fixed":False, "units":u.au},}
     
     def __init__(self):
-        super().__init__(name="flared disk", params=self.default_params)
+        super().__init__(name="flared_disk", params=self.default_params)
 
     def print_param_names(self):
         names = [param for param in self.default_params]
@@ -23,13 +23,13 @@ class FlaredDisk(Component):
 
     def surface_density(self, r):
         self.gamma = self.p + self.beta
-        sigma0 = ((2 - self.gamma) * self.M_disk) / (2 * np.pi * self.R_disk_max**2)
-        sigma = (sigma0 * (r/self.R_disk_max)**(-self.gamma) * np.exp(-(r/self.R_disk_max)**(2-self.gamma))).to(u.g/u.cm**2)
-        sigma[r < self.R_disk_min] = 0.0
+        sigma0 = ((2 - self.gamma) * self.M) / (2 * np.pi * self.R_max**2)
+        sigma = (sigma0 * (r/self.R_max)**(-self.gamma) * np.exp(-(r/self.R_max)**(2-self.gamma))).to(u.g/u.cm**2)
+        sigma[r < self.R_min] = 0.0
         return sigma
     
     def scale_height(self, r):
-        return self.H_0 * (r / self.R_disk_0)**self.beta
+        return self.H_0 * (r / self.R_0)**self.beta
     
     def density(self, r, z):
         sigma = self.surface_density(r)

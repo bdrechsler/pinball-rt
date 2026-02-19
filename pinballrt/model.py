@@ -56,6 +56,7 @@ class Model:
         # keep param names simple per copmonent, in model params dictionary add component name
 
 
+
     def add_density(self, density: u.Quantity, dust):
         """
         Add density to the grid.
@@ -90,16 +91,17 @@ class Model:
         self.add_density(density=density, dust=dust)
         
         for param in component.params:
-            self.params[param] = component.params[param]
+            long_name = component.name + "_" + param
+            self.params[long_name] = component.params[param]
 
-    def set_component_params(self, component_name, **pkwargs):
-        component = self.components['component_name']
-        component.set_params(**pkwargs)
-        density = component.density_grid(self.grid)
-        self.add_density(density)
+    # def set_component_params(self, component_name, **pkwargs):
+    #     component = self.components['component_name']
+    #     component.set_params(**pkwargs)
+    #     density = component.density_grid(self.grid)
+    #     self.add_density(density)
         
-        for param in component.params:
-            self.params[param] = component.params[param]
+    #     for param in component.params:
+    #         self.params[param] = component.params[param]
 
 
     def log_l(self, data, **pkwargs):
